@@ -266,12 +266,12 @@ class BulkQueryClient(BulkIngestClient):
                 ),
             )
             locator = response.headers.get("locator")
-            break
+            if not locator:
+                break
 
-        # ?locator={locator}&maxRecords={maxRecords}
         return JobResult(
             job_info=job,
-            successful_results=deserialize_ingest_results(response.content),
+            successful_results=results,
             failed_results=[],
             unprocessed_records=[],
         )
