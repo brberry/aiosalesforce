@@ -20,11 +20,10 @@ from aiosalesforce.events import BulkApiBatchConsumptionEvent
 from aiosalesforce.utils import json_dumps, json_loads
 
 from ._csv import deserialize_ingest_results, serialize_ingest_data
-from .ingest import BulkIngestClient
+from .ingest import BulkIngestClient, JobInfo, JobResult
 
 if TYPE_CHECKING:
     from .client import BulkClientV2
-    from .ingest import JobInfo, JobResult
 
 
 class BulkQueryClient(BulkIngestClient):
