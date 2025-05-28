@@ -75,7 +75,7 @@ class BulkQueryClient(BulkIngestClient):
             "POST",
             self.base_url,
             content=json_dumps(payload),
-            headers={"Content-Type": "application/json", "Accept": "application/json"},
+            headers={"Content-Type": "application/json", "Accept": "application/json"}
         )
         return JobInfo.from_json(response.content)
 
@@ -234,20 +234,35 @@ class BulkQueryClient(BulkIngestClient):
     async def __perform_operation(
         self,
         query: str,
+        locator: str | None = None,
+        max_records: int = 150_000_000,
         polling_interval: float = 5.0,
     ) -> JobResult:
+
         job = await self.create_job(
             query,
         )
+
         while job.state.lower().strip(" ") in {"open", "uploadcomplete", "inprogress"}:
             await asyncio.sleep(polling_interval)
             job = await self.get_job(job.id)
 
-        response = await self.bulk_client.salesforce_client.request(
-            "GET",
-            f"{self.base_url}/{job.id}/results",
-        )
+        headers={"Content-Type": "application/json", "Accept": "application/json", "Content-Encoding": "gzip"}
+        params = {}
+        while True:
+            if locator:
+                params["locator"] = locator
+            params["max_records"] = max_records
+            response = await self.bulk_client.salesforce_client.request(
+                "GET",
+                f"{self.base_url}/{job.id}/results",
+                headers=headers,
+                params=params,
+            )
+            locator = response.headers.get("locator")
+            break
 
+        # ?locator={locator}&maxRecords={maxRecords}
         return JobResult(
             job_info=job,
             successful_results=deserialize_ingest_results(response.content),
@@ -255,9 +270,38 @@ class BulkQueryClient(BulkIngestClient):
             unprocessed_records=[],
         )
 
+    # async def get_query_results(
+    #     self, job_id: str, locator: str = "", max_records: int = DEFAULT_QUERY_PAGE_SIZE
+    # ) -> QueryResult:
+    #     """Get results for a query job"""
+    #     url = self._construct_request_url(job_id, True) + "/results"
+    #     params: QueryParameters = {"maxRecords": max_records}
+    #     if locator and locator != "null":
+    #         params["locator"] = locator
+    #     headers = self._get_headers(self.JSON_CONTENT_TYPE, self.CSV_CONTENT_TYPE)
+    #     result = call_salesforce(
+    #         url=url,
+    #         method="GET",
+    #         session=self.session,
+    #         headers=headers,
+    #         params=params,
+    #     )
+    #     locator = result.headers.get("Sforce-Locator", "")
+    #     if locator == "null":
+    #         locator = ""
+    #     number_of_records = int(result.headers["Sforce-NumberOfRecords"])
+    #     return {
+    #         "locator": locator,
+    #         "number_of_records": number_of_records,
+    #         "records": self.filter_null_bytes(result.content.decode("utf-8")),
+    #     }
+
+
     async def perform_operation(
         self,
         query: str,
+        locator: str | None = None,
+        max_records: int = 150_000_000,
         polling_interval: float = 5.0,
     ) -> AsyncIterator[JobResult]:
         """
@@ -281,6 +325,7 @@ class BulkQueryClient(BulkIngestClient):
         tasks: list[asyncio.Task[JobResult]] = [asyncio.create_task(
             self.__perform_operation(
                 query,
+                max_records=max_records,
                 polling_interval=polling_interval,
             )
         )]
