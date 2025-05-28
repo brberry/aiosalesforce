@@ -247,17 +247,23 @@ class BulkQueryClient(BulkIngestClient):
             await asyncio.sleep(polling_interval)
             job = await self.get_job(job.id)
 
-        headers={"Content-Type": "application/json", "Accept": "application/json", "Content-Encoding": "gzip"}
+        headers = {"Content-Type": "application/json", "Accept": "application/json", "Content-Encoding": "gzip"}
         params = {}
+        results = []
         while True:
             if locator:
                 params["locator"] = locator
-            params["max_records"] = max_records
+            params["maxRecords"] = max_records
             response = await self.bulk_client.salesforce_client.request(
                 "GET",
                 f"{self.base_url}/{job.id}/results",
                 headers=headers,
                 params=params,
+            )
+            results.extend(
+                deserialize_ingest_results(
+                    response.content,
+                ),
             )
             locator = response.headers.get("locator")
             break
