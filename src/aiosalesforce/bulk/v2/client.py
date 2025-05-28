@@ -8,6 +8,7 @@ if TYPE_CHECKING:
     from aiosalesforce.client import Salesforce
 
 from .ingest import BulkIngestClient, JobInfo, OperationType
+from .query import BulkQueryClient
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +56,11 @@ class BulkClientV2:
     def ingest(self) -> BulkIngestClient:
         """Manage ingest jobs at a low level."""
         return BulkIngestClient(self)
+
+    @cached_property
+    def _query(self) -> BulkQueryClient:
+        """Manage ingest jobs at a low level."""
+        return BulkQueryClient(self)
 
     async def __perform_operation(
         self,
@@ -205,3 +211,31 @@ class BulkClientV2:
             data=data,
             assignment_rule_id=None,
         )
+
+    async def query(
+        self,
+        query: str,
+    ) -> IngestResult:
+        """
+        Query records from Salesforce.
+
+        Parameters
+        ----------
+        query : str
+            Salesforce query to execute.
+
+        Returns
+        -------
+        IngestResult
+            Bulk API 2.0 ingest job results.
+
+        """
+        result = IngestResult([], [], [], [])
+        async for job_result in self._query.perform_operation(
+                query=query,
+        ):
+            result.jobs.append(job_result.job_info)
+            result.successful_results.extend(job_result.successful_results)
+            result.failed_results.extend(job_result.failed_results)
+            result.unprocessed_records.extend(job_result.unprocessed_records)
+        return result
