@@ -243,33 +243,16 @@ class BulkQueryClient(BulkIngestClient):
             await asyncio.sleep(polling_interval)
             job = await self.get_job(job.id)
 
-        tasks: list[asyncio.Task[Response]] = []
-        async with asyncio.TaskGroup() as tg:
-            for type_ in [
-                "successfulResults",
-                "failedResults",
-                "unprocessedrecords",
-            ]:
-                tasks.append(
-                    tg.create_task(
-                        self.bulk_client.salesforce_client.request(
-                            "GET",
-                            f"{self.base_url}/{job.id}/{type_}",
-                        )
-                    )
-                )
+        response = await self.bulk_client.salesforce_client.request(
+            "GET",
+            f"{self.base_url}/{job.id}/results",
+        )
 
         return JobResult(
             job_info=job,
-            successful_results=deserialize_ingest_results(
-                tasks[0].result().content,
-            ),
-            failed_results=deserialize_ingest_results(
-                tasks[1].result().content,
-            ),
-            unprocessed_records=deserialize_ingest_results(
-                tasks[2].result().content,
-            ),
+            successful_results=deserialize_ingest_results(response.content),
+            failed_results=[],
+            unprocessed_records=[],
         )
 
     async def perform_operation(
