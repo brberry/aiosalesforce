@@ -215,6 +215,7 @@ class BulkClientV2:
     async def query(
         self,
         query: str,
+        polling_interval: float = 5.0,
     ) -> IngestResult:
         """
         Query records from Salesforce.
@@ -233,6 +234,7 @@ class BulkClientV2:
         result = IngestResult([], [], [], [])
         async for job_result in self._query.perform_operation(
                 query=query,
+                polling_interval=polling_interval,
         ):
             result.jobs.append(job_result.job_info)
             result.successful_results.extend(job_result.successful_results)
